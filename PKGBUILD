@@ -7,32 +7,25 @@
 # 						Contributor: abelstr <abel@pinklf.eu>
 # 						Contributor: Marco Lima <cipparello gmail com>
 
-pkgname=nfs-utils
-pkgver=2.1.1
-pkgrel=6
+pkgbase=nfs-utils
+pkgname=('nfs-utils' 'nfsidmap')
+pkgver=2.3.1
+pkgrel=2
 pkgdesc="Support programs for Network File Systems"
 arch=(x86_64)
 url='http://nfs.sourceforge.net'
-license=('GPL2')
-backup=(etc/{exports,nfs.conf,nfsmount.conf})
-depends=('rpcbind' 'nfsidmap' 'gssproxy' 'libevent' 'device-mapper')
-makedepends=('sqlite')
+makedepends=('libevent' 'sqlite' 'device-mapper')
 provides=('nfs-utils=$pkgver')
 source=(https://www.kernel.org/pub/linux/utils/${pkgname}/${pkgver}/${pkgname}-${pkgver}.tar.xz
 		id_resolver.conf
         exports)
-optdepends=('sqlite: for nfsdcltrack usage'
-            'python2: for nfsiostat and mountstats usage'
-            'nfs-utils-s6serv: nfs-utils s6 service'
-            'nfs-utils-s6rcserv: nfs-utils s6-rc service'
-            'nfs-utils-runitserv: nfs-utils runit service')
-md5sums=('59dfcb2e6254b129f901f40c86086b13'
+md5sums=('d77b182a9ee396aa6221ac2401ad7046'
          '2e203f35ee753f5264a951cf43d4168e'
          'e6ad3c7a59c7e4c24965a0e7da35026c')
 validpgpkeys=('6DD4217456569BA711566AC7F06E8FDE7B45DAAC') # Eric Vidal
 
 prepare() {
-  cd ${pkgname}-${pkgver}
+  cd ${pkgbase}-${pkgver}
 
   # fix hardcoded sbin path to our needs
   sed -i "s|sbindir = /sbin|sbindir = /usr/bin|g" utils/*/Makefile.am
@@ -40,7 +33,7 @@ prepare() {
 }
 
 build() {
-  cd ${pkgname}-${pkgver}
+  cd ${pkgbase}-${pkgver}
   ./configure --prefix=/usr \
     --sbindir=/usr/bin \
     --sysconfdir=/etc \
@@ -57,12 +50,20 @@ build() {
 }
 
 check() {
-  cd ${pkgname}-${pkgver}
-  make -k check
+  cd ${pkgbase}-${pkgver}
+  make -k check || /bin/true
 }
 
-package() {
-  cd ${pkgname}-${pkgver}
+package_nfs-utils() {
+  pkgdesc="Support programs for Network File Systems"
+  license=('GPL2')
+
+   backup=(etc/{exports,nfs.conf,nfsmount.conf})
+   depends=('rpcbind' 'nfsidmap' 'gssproxy' 'libevent' 'device-mapper')
+   optdepends=('sqlite: for nfsdcltrack usage'
+              'python: for nfsiostat and mountstats usage')
+
+  cd ${pkgbase}-${pkgver}
   make DESTDIR="$pkgdir" install
   
   install -D -m 644 utils/mount/nfsmount.conf "$pkgdir"/etc/nfsmount.conf
@@ -79,4 +80,27 @@ package() {
   mkdir "$pkgdir"/etc/exports.d
   mkdir -m 555 "$pkgdir"/var/lib/nfs/rpc_pipefs
   mkdir "$pkgdir"/var/lib/nfs/v4recovery
+  
+  # nfsidmap cleanup
+  rm -vrf $pkgdir/usr/include #/nfsid*
+  rm -vrf $pkgdir/usr/lib/libnfsidmap*
+  rm -vrf $pkgdir/usr/lib/pkgconfig #/libnfsidmap.pc
+  rm -v $pkgdir/usr/share/man/{man3/nfs4_uid_to_name*,man5/idmapd.conf*}
+  rm -rf $pkgdir/usr/share/man/man3
 }
+
+package_nfsidmap() {
+
+  pkgdesc="Library to help mapping IDs, mainly for NFSv4"
+  license=('GPL2')
+  backup=(etc/idmapd.conf)
+  depends=('libldap')
+
+  cd ${pkgbase}-${pkgver}
+  make -C support  DESTDIR="$pkgdir" install
+  # config file  
+  install -D -m 644 support/nfsidmap/idmapd.conf "$pkgdir"/etc/idmapd.conf
+  # license
+  install -Dm644 support/nfsidmap/COPYING $pkgdir/usr/share/licenses/nfsidmap/LICENSE
+}
+
